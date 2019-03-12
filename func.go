@@ -3,34 +3,21 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 
+	fdk "github.com/fnproject/fdk-go"
 	"github.com/google/go-github/github"
-	//"github.com/google/go-github/v24/github"
 )
 
 func main() {
-	//fdk.Handle(fdk.HandlerFunc(myHandler))
-	GitHubCalls("")
+	fdk.Handle(fdk.HandlerFunc(myHandler))
 }
-
-//Item is a result item from code search
-/* type Item struct {
-	Name string `json:"name"`
-	path string `json:"path"`
-}
-
-// CodeSearchResult contains results from a search in the code
-type CodeSearchResult struct {
-	Repository string
-	Tot        int    `json: "total_count"`
-	Items      []Item `json:"items"`
-} */
 
 func GitHubCalls(repo string) (*github.CodeSearchResult, error) {
 	if repo == "" {
-		repo = "fnproject/fn"
+		repo = "fnproject/fnz"
 	}
 	searchString := fmt.Sprintf("TODO in:file repo:%s", repo)
 	client := github.NewClient(nil)
@@ -39,15 +26,7 @@ func GitHubCalls(repo string) (*github.CodeSearchResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("Total occurences: %d\n\n", *results.Total)
-	/* 	for _, cr := range results.CodeResults {
-		fmt.Printf("File name %s\n", cr.GetName())
-		fmt.Printf("File path %s\n", cr.GetPath())
-		fmt.Printf("Html URL %s\n\n", cr.GetHTMLURL())
-
-	} */
 	return results, nil
-
 }
 
 type SearchQuery struct {
@@ -55,25 +34,54 @@ type SearchQuery struct {
 }
 
 type SearchResults struct {
-	Error string                   `json:"error"`
-	Msg   *github.CodeSearchResult `json:"results"`
+	Error   string       `json:"error"`
+	Results []*msgResult `json:"results"`
 }
 
-func myHandler(ctx context.Context, in io.Reader, out io.Writer) {
-	p := &SearchQuery{Repo: "World"}
-	json.NewDecoder(in).Decode(p)
-	resu, err := GitHubCalls(p.Repo)
+type msgResult struct {
+	Total    int    `json:"total_occurences,omitempty"`
+	FileName string `json:"file_name,omitempty"`
+	FilePath string `json:"file_path,omitempty"`
+	HTMLURL  string `json:"html_url,omitempty"`
+}
+
+func oldStyle(repo string) SearchResults {
 	var msg SearchResults
+	resu, err := GitHubCalls(repo)
 	if err != nil {
 		msg = SearchResults{Error: err.Error()}
 	} else {
-		msg = SearchResults{Msg: resu}
+		results := make([]*msgResult, 0)
+		if len(resu.CodeResults) > 0 {
+			recapResult := &msgResult{Total: *resu.Total}
+			results = append(results, recapResult)
+		}
+		for _, v := range resu.CodeResults {
+			r := &msgResult{
+				FileName: *v.Name,
+				FilePath: *v.Path,
+				HTMLURL:  *v.HTMLURL,
+			}
+			results = append(results, r)
+		}
+		msg = SearchResults{Results: results}
 	}
-	/* msg := struct {
-		Msg string `json:"message"`
-	}{
-		Msg: fmt.Sprintf("Hello %s", p.Repo),
+	return msg
+}
+
+func myHandler(ctx context.Context, in io.Reader, out io.Writer) {
+	// you can invoke it passing the repository name via the Fn cli
+	// echo -n '{"repo_name": "fnproject/fn"}'| fn invoke oracle-code fngh | jq .
+	p := &SearchQuery{}
+	err := json.NewDecoder(in).Decode(p)
+	if err != nil {
+		_ = json.NewEncoder(out).Encode(&SearchResults{Error: err.Error()})
+		return
 	}
-	json.NewEncoder(out).Encode(&msg) */
-	json.NewEncoder(out).Encode(&msg)
+	msg := oldStyle(p.Repo)
+	err = json.NewEncoder(out).Encode(&msg)
+	if err != nil {
+		_ = json.NewEncoder(out).Encode(&SearchResults{Error: errors.New("Unable to encode results").Error()})
+		return
+	}
 }
