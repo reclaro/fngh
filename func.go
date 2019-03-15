@@ -8,25 +8,11 @@ import (
 	"io"
 
 	fdk "github.com/fnproject/fdk-go"
-	"github.com/google/go-github/github"
+	"github.com/reclaro/golab/ghapi"
 )
 
 func main() {
 	fdk.Handle(fdk.HandlerFunc(myHandler))
-}
-
-func GitHubCalls(repo string) (*github.CodeSearchResult, error) {
-	if repo == "" {
-		repo = "fnproject/fnz"
-	}
-	searchString := fmt.Sprintf("TODO in:file repo:%s", repo)
-	client := github.NewClient(nil)
-	ctx := context.Background()
-	results, _, err := client.Search.Code(ctx, searchString, nil)
-	if err != nil {
-		return nil, err
-	}
-	return results, nil
 }
 
 type SearchQuery struct {
@@ -45,11 +31,11 @@ type msgResult struct {
 	HTMLURL  string `json:"html_url,omitempty"`
 }
 
-func oldStyle(repo string) SearchResults {
+func searchInRepo(repo string) SearchResults {
 	var msg SearchResults
-	resu, err := GitHubCalls(repo)
+	resu, err := ghapi.Search(repo)
 	if err != nil {
-		msg = SearchResults{Error: err.Error()}
+		msg = SearchResults{Error: fmt.Sprintf("No results found. %s ", err.Error())}
 	} else {
 		results := make([]*msgResult, 0)
 		if len(resu.CodeResults) > 0 {
@@ -74,11 +60,14 @@ func myHandler(ctx context.Context, in io.Reader, out io.Writer) {
 	// echo -n '{"repo_name": "fnproject/fn"}'| fn invoke oracle-code fngh | jq .
 	p := &SearchQuery{}
 	err := json.NewDecoder(in).Decode(p)
-	if err != nil {
-		_ = json.NewEncoder(out).Encode(&SearchResults{Error: err.Error()})
+	if err != nil && err != io.EOF {
+		_ = json.NewEncoder(out).Encode(&SearchResults{Error: fmt.Sprintf("Error in decoding input %s", err.Error())})
 		return
 	}
-	msg := oldStyle(p.Repo)
+	if p.Repo == "" {
+		p.Repo = "fnproject/fn"
+	}
+	msg := searchInRepo(p.Repo)
 	err = json.NewEncoder(out).Encode(&msg)
 	if err != nil {
 		_ = json.NewEncoder(out).Encode(&SearchResults{Error: errors.New("Unable to encode results").Error()})
