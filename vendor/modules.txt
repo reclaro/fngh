@@ -4,5 +4,5 @@ github.com/fnproject/fdk-go
 github.com/google/go-github/github
 # github.com/google/go-querystring v1.0.0
 github.com/google/go-querystring/query
-# github.com/reclaro/golab v0.0.0-20190315170320-d2fd9a4b22f5
+# github.com/reclaro/golab v0.0.0-20190315173757-b28e1c458c37
 github.com/reclaro/golab/ghapi

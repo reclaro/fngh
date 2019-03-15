@@ -7,8 +7,8 @@ import (
 )
 
 // Search executes a search inside a specified repositroy name
-func Search(repoName string) (*github.CodeSearchResult, error) {
-	searchString := fmt.Sprintf("TODO in:file repo:%s", repoName)
+func Search(searchTerm, repoName string) (*github.CodeSearchResult, error) {
+	searchString := fmt.Sprintf("%s in:file repo:%s", searchTerm, repoName)
 	client := github.NewClient(nil)
 	ctx := context.Background()
 	results, _, err := client.Search.Code(ctx, searchString, nil)

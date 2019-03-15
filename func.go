@@ -15,8 +15,10 @@ func main() {
 	fdk.Handle(fdk.HandlerFunc(myHandler))
 }
 
+//SearchQuery is used to pass the repository name and the query we want to perform
 type SearchQuery struct {
-	Repo string `json:"repo_name"`
+	Repo  string `json:"repo_name"`
+	Query string `json:"query"`
 }
 
 type SearchResults struct {
@@ -31,9 +33,9 @@ type msgResult struct {
 	HTMLURL  string `json:"html_url,omitempty"`
 }
 
-func searchInRepo(repo string) SearchResults {
+func searchInRepo(sq *SearchQuery) SearchResults {
 	var msg SearchResults
-	resu, err := ghapi.Search(repo)
+	resu, err := ghapi.Search(sq.Query, sq.Repo)
 	if err != nil {
 		msg = SearchResults{Error: fmt.Sprintf("No results found. %s ", err.Error())}
 	} else {
@@ -57,17 +59,20 @@ func searchInRepo(repo string) SearchResults {
 
 func myHandler(ctx context.Context, in io.Reader, out io.Writer) {
 	// you can invoke it passing the repository name via the Fn cli
-	// echo -n '{"repo_name": "fnproject/fn"}'| fn invoke oracle-code fngh | jq .
-	p := &SearchQuery{}
-	err := json.NewDecoder(in).Decode(p)
+	// echo -n '{"repo_name": "fnproject/fn", "query": "TODO"}'| fn invoke oracle-code fngh | jq .
+	sq := &SearchQuery{}
+	err := json.NewDecoder(in).Decode(sq)
 	if err != nil && err != io.EOF {
 		_ = json.NewEncoder(out).Encode(&SearchResults{Error: fmt.Sprintf("Error in decoding input %s", err.Error())})
 		return
 	}
-	if p.Repo == "" {
-		p.Repo = "fnproject/fn"
+	if sq.Repo == "" {
+		sq.Repo = "fnproject/fn"
 	}
-	msg := searchInRepo(p.Repo)
+	if sq.Query == "" {
+		sq.Query = "TODO"
+	}
+	msg := searchInRepo(sq)
 	err = json.NewEncoder(out).Encode(&msg)
 	if err != nil {
 		_ = json.NewEncoder(out).Encode(&SearchResults{Error: errors.New("Unable to encode results").Error()})
