@@ -1,5 +1,5 @@
 schema_version: 20180708
 name: fngh
-version: 0.0.26
+version: 0.0.30
 runtime: go
 entrypoint: ./func
